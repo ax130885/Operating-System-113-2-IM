@@ -37,7 +37,8 @@ int main(int argc, char *argv[])
 
 	// 1. 開啟或建立共享記憶體
 	const char *name = "/collatz_shm";
-	// shm_open 打開一個共享記憶體的檔案 並且由系統分配一個檔案描述符 (檔案描述符為一個由系統分配的整數，類似於檔案的索引)
+	// shm_open 打開一個虛擬的共享記憶體的檔案 並且由系統分配一個檔案描述符 (檔案描述符為一個由系統分配的整數，類似於檔案的索引)
+	// 此檔案保存在 /dev/shm/ 目錄下，這是一個虛擬檔案，並不會在磁碟上實際存在。
 	// shm_open(儲存的檔名, O_CREAT如果不存在就創建, O_RDWR可讀(RD)可寫(WR), 0666 (wrx存取權限))
 	int shm_fd = shm_open(name, O_CREAT | O_RDWR, 0666);
 	if (shm_fd == -1)
