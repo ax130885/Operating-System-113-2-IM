@@ -7,7 +7,13 @@
 // 35, 106, 53, 160, 80, 40, 20, 10, 5, 16, 8, 4, 2, 1
 // 父進程：子進程已完成。
 
-// 題目：使用 fork() 函數創建子進程，子進程生成並打印 Collatz 序列，父進程等待子進程結束後打印提示信息。
+// Collatz 序列定義:
+// 如果 n 是偶數，則下一項為 n / 2；
+// 如果 n 是奇數，則下一項為 3n + 1；
+// 如果n 是 1 結束。
+
+// 題目：使用 fork() 函數創建子進程，子進程計算並印出 Collatz 序列，
+// 父進程僅等待子進程結束，不參與計算，也不會知道結果。
 #include <stdio.h>	  // 標準輸入輸出
 #include <stdlib.h>	  // 標準函式庫 (atoi, exit)
 #include <unistd.h>	  // UNIX 標準函式庫 (fork)
@@ -31,17 +37,17 @@ void generate_collatz(int n)
 
 	while (n != 1)
 	{
-		if (n % 2 == 0)
+		if (n % 2 == 0) // 如果n是偶數 就除2
 		{
-			n = n / 2; // 偶數情況
+			n = n / 2;
 		}
-		else
+		else // 如果n是奇數 就乘3加1
 		{
-			n = 3 * n + 1; // 奇數情況
+			n = 3 * n + 1;
 		}
-		printf(", %d", n); // 印出序列中的每個數字
+		printf(", %d", n);
 	}
-	printf("\n"); // 最後換行
+	printf("\n");
 }
 
 int main(int argc, char *argv[])
