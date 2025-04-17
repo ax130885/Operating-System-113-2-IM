@@ -10,7 +10,7 @@
 // 0 1 1 2 3 5 8 13 21 34
 
 // 題目：使用多線程(pthread)的方式來生成斐波那契數列(Fibonacci sequence)。
-// 父進程僅等待子進程結束，不參與計算，僅印出子進程返回的結果。
+// 父線程僅等待子線程結束，不參與計算，僅印出子線程返回的結果。
 #include <iostream>
 #include <pthread.h>
 #include <vector>
@@ -28,6 +28,7 @@ void *generate_fibonacci(void *arg)
 {
 	ThreadData *data = (ThreadData *)arg;
 
+	// 前兩項特例
 	if (data->length >= 1)
 	{
 		data->sequence.push_back(0); // fib₀ = 0
@@ -37,6 +38,7 @@ void *generate_fibonacci(void *arg)
 		data->sequence.push_back(1); // fib₁ = 1
 	}
 
+	// 從第三項開始計算斐波那契數列: fibₙ = fibₙ₋₁ + fibₙ₋₂
 	for (int i = 2; i < data->length; ++i)
 	{
 		long long next = data->sequence[i - 1] + data->sequence[i - 2];
@@ -55,6 +57,7 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
+	// atoi函數將CLI輸入的字串轉換為整數
 	int length = std::atoi(argv[1]);
 	if (length < 0)
 	{

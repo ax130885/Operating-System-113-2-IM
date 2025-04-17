@@ -65,6 +65,7 @@ void *generate_points(void *arg)
 	return nullptr;
 }
 
+// 主函數 等待所有子線程完成以後，計算π的估計值。
 int main(int argc, char *argv[])
 {
 	// 檢查命令行參數

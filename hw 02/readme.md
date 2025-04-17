@@ -15,143 +15,233 @@ Make
 
 # 作業處理邏輯
 ## hw2_Q1.c 對應到 4.17 (Q1)
-題目: 此程式使用 `fork()` 函數創建子進程，子進程負責計算並印出前 n 項斐波那契數列，父進程則等待子進程完成後印出提示訊息。
+題目: 蒙特卡羅方法估算圓周率 π (使用 Pthreads)  
+1. **算法解釋**：  
+   	蒙特卡羅方法: 用大量隨機資料來模擬問題的解答，並從中估算出結果。  
+	假設有一個半徑為1的圓(面積為π)，內接於一個邊長為2的正方形(面積為4)中。  
+	隨機產生大量的點落在這個正方形內，統計有多少點落在圓內。  
+	估計的π值：π ≈ 4 × (圓內點數量) / (總點數量)； 概念相當於 正方形面積 * (圓形面積/正方形面積)。  
 
-1. **子進程邏輯**：
-   - 斐波那契數列前兩項為0, 1
-   - 後續計算方式為 a[n] = a[n-1] + a[n-2]
+2. **子線程邏輯**：  
+   - 生成隨機點並計算圓內點數，結束前用mutex更新global的point數量。
 		```cpp
-		// 處理前兩項特殊情況
-		if (n >= 1)
-			printf("%d ", 0); // 第1項：0
-		if (n >= 2)
-			printf("%d ", 1); // 第2項：1
-
-		// 初始化變數
-		int a = 0, b = 1;
-		// 從第3項開始計算
-		for (int i = 3; i <= n; i++)
+		void *generate_points(void *arg)
 		{
-			int next = a + b;	 // 計算下一項
-			printf("%d ", next); // 打印當前項
-			a = b;				 // 更新前前一項
-			b = next;			 // 更新前一項
+			// 把輸入參數強制轉型成所需格式，獲取每個線程點的數量。(只能傳入一個指標，如果想要傳入多個，只能用物件或結構體包起來。)
+			unsigned long long num_points = *((unsigned long long *)arg);
+			
+			// 建立每個線程單獨的計數器
+			unsigned long long local_count = 0;
+
+			// 設置隨機數生成器
+			std::random_device rd;                             // 真隨機數設備
+			std::mt19937 gen(rd());                            // 使用Mersenne Twister算法
+			std::uniform_real_distribution<> dis(-1.0, 1.0);  // 均勻分布在[-1,1]
+
+			// 生成隨機點並檢查是否在圓內
+			for (unsigned long long i = 0; i < num_points; ++i)
+			{
+				double x = dis(gen); // 隨機x座標
+				double y = dis(gen); // 隨機y座標
+
+				// 檢查點是否在單位圓內 (x² + y² ≤ 1)
+				if (x * x + y * y <= 1.0)
+				{
+					local_count++; // 如果在圓內，本地計數加1
+				}
+			}
+
+			// 使用互斥鎖安全地更新全局計數
+			pthread_mutex_lock(&mutex);         // 上鎖
+			points_in_circle += local_count;    // 更新圓內點數
+			total_points += num_points;         // 更新總點數
+			pthread_mutex_unlock(&mutex);       // 解鎖
+
+			return nullptr;
 		}
 		```
-2. **父進程邏輯**：
-   - 只需要`wait(NULL)`等待子進程完成。
+3. **主線程邏輯**：
+   - pthread_create 創建線程。
+   - pthread_join 等待所有子線程完成以後，計算π的估計值。
 		```cpp
-		// 創建子進程 (課本範例見ch03 p26)
-		pid_t pid = fork(); // 父進程返回子進程的 PID (可以用waitpid()等待子進程結束)，子進程返回 0，失敗返回 -1
+		pthread_t threads[num_threads]; // 創建線程陣列
 
-		if (pid < 0)
+		// 創建並啟動所有線程
+		for (int i = 0; i < num_threads; ++i)
 		{
-			// fork() 失敗的情況
-			fprintf(stderr, "創建子進程失敗\n");
-			return EXIT_FAILURE;
+			// pthread_create的參數：線程ID、線程屬性、線程函數、傳遞給線程函數的參數。(參數只能傳入一個指標，如果想要傳入多個，只能用物件或結構體包起來。)
+			pthread_create(&threads[i], nullptr, generate_points, &points_per_thread);
 		}
-		else if (pid == 0)
+
+		// 等待所有線程完成
+		for (int i = 0; i < num_threads; ++i)
 		{
-			// 子進程執行的程式碼
-			generate_fibonacci(n); // 生成斐波那契數列
-			exit(EXIT_SUCCESS);	   // 子進程正常退出
+			pthread_join(threads[i], nullptr);
 		}
-		else
-		{
-			// 父進程執行的程式碼
-			// wait() 等待任何一個子進程結束，並且返回結束進程的pid，若無執行中子進程，返回-1)。
-			// 如果要指定進程結束，可以用waitpid(pid, &status, 0);
-			// 如果要等待所有進程結束，可以while(wait(NULL) > 0);。
-			wait(NULL);
-			printf("父進程：子進程已完成。\n");
-		}
+
+		// 計算並輸出π的估算值
+		double pi_estimate = 4.0 * points_in_circle / total_points;
+		std::cout << "估算的π值: " << pi_estimate << std::endl;
+		std::cout << "總點數: " << total_points << std::endl;
+		std::cout << "圓內點數: " << points_in_circle << std::endl;
 		```
 
 
 ## hw2_Q2.c 對應到 4.21 (Q2)
-題目: 類似上次作業，印出斐波那契序列。但把`fork`改為multi-thread來做。
-   - 斐波那契數列前兩項為0, 1
-   - 後續計算方式為 a[n] = a[n-1] + a[n-2]
-1. **子進程邏輯**：
-	- Collatz 序列定義：  
-	對於任意正整數 n，若 n 為偶數，下一項為 n/2；若 n 為奇數，下一項為 3n+1。  
-  	重複上述步驟，直到數列到達 1 為止。  
-		```cpp
-		printf("%d", n); // 先印出第一個數字
-		while (n != 1)
-		{
-			if (n % 2 == 0) // 如果n是偶數 就除2
-			{
-				n = n / 2;
-			}
-			else // 如果n是奇數 就乘3加1
-			{
-				n = 3 * n + 1;
-			}
-			printf(", %d", n);
-		}
-		``` 
+題目: 類似上次作業，印出斐波那契序列。但把`fork`改為multi-thread來做。主線程僅等待子線程結束，不參與計算，僅印出子線程返回的結果。  
+   - 斐波那契數列前兩項為0, 1  
+   - 後續計算方式為 a[n] = a[n-1] + a[n-2]  
+1. **子線程邏輯**：
+	```cpp
+	void *generate_fibonacci(void *arg)
+	{
+		ThreadData *data = (ThreadData *)arg;
 
-2. **父進程邏輯**：
-   - 與第一題相同，只需要`wait(NULL)`。
+		// 前兩項特例
+		if (data->length >= 1)
+		{
+			data->sequence.push_back(0); // fib₀ = 0
+		}
+		if (data->length >= 2)
+		{
+			data->sequence.push_back(1); // fib₁ = 1
+		}
+
+		// 從第三項開始計算斐波那契數列: fibₙ = fibₙ₋₁ + fibₙ₋₂
+		for (int i = 2; i < data->length; ++i)
+		{
+			long long next = data->sequence[i - 1] + data->sequence[i - 2];
+			data->sequence.push_back(next);
+		}
+
+		return nullptr;
+	}
+	``` 
+
+2. **主線程邏輯**：
+   - 事先準備一個struct，用於傳遞子線程計算的斐波那契結果。  
+		```cpp
+		struct ThreadData
+		{
+			int length;						 // 要生成的斐波那契數列長度
+			std::vector<long long> sequence; // 儲存生成的數列
+		};
+		```
+
+   - pthread_create 創建線程。  
+   - pthread_join 子線程完成以後，印出計算的斐波那契結果。  
+		```cpp
+		// atoi函數將CLI輸入的字串轉換為整數
+		int length = std::atoi(argv[1]);
+		if (length < 0)
+		{
+			std::cerr << "錯誤: 長度必須是非負整數\n";
+			return 1;
+		}
+
+		// 準備線程資料
+		ThreadData data;
+		data.length = length;
+
+		pthread_t thread;
+
+		// 創建線程來生成斐波那契數列
+		if (pthread_create(&thread, nullptr, generate_fibonacci, &data) != 0)
+		{
+			std::cerr << "錯誤: 無法創建線程\n";
+			return 1;
+		}
+
+		// 等待線程完成
+		if (pthread_join(thread, nullptr) != 0)
+		{
+			std::cerr << "錯誤: 無法等待線程\n";
+			return 1;
+		}
+		```
 
 
 ## hw2_Q3.c 對應到 Project 2 - multithreaded sorting application (Q3)
-題目: 使用 `fork()` 函數創建子進程，子進程計算 Collatz 序列。透過共享記憶體將結果傳遞給父進程，父進程從共享記憶體讀取結果並印出來。
+題目: 輸入一個列表，將列表分為一半，丟到兩個線程中進行排序。  
+然後再用一個線程，合併兩個已排序的列表。  
+父線程僅在最後印出結果。  
 
-1. **子進程邏輯**：
-   - 計算 Collatz 序列的邏輯與第二題相同，但結果會存入共享記憶體，而非直接輸出。
-   - 使用 `snprintf()` 將每個數字以字串形式寫入共享記憶體，並確保不超出記憶體大小。
+1. **子線程邏輯**：
+   - 使用 std::sort (通常是quick sort) 對分半的陣列排序。
 		```cpp
-		int n = start;
-		int offset = 0;
-		offset += snprintf(shm_ptr + offset, SHM_SIZE - offset, "%d", n);
-		while (n != 1)
+		// 排序線程函數
+		void *sort_thread(void *arg)
 		{
-			if (n % 2 == 0)
-				n = n / 2;
-			else
-				n = 3 * n + 1;
-			if (offset + 1 >= SHM_SIZE - offset)
-				break;
-			offset += snprintf(shm_ptr + offset, SHM_SIZE - offset, ", %d", n);
+			SortParams *params = (SortParams *)arg;
+
+			// 使用 std::sort (通常是 quick sort) 對指定範圍的子陣列進行排序
+			std::sort(original_array.begin() + params->start_index,
+					original_array.begin() + params->end_index + 1);
+
+			return nullptr;
+		}
+		```
+   - 使用 merge sort 把兩個線程的陣列合併。
+		```cpp
+		// 合併線程函數
+		void *merge_thread(void *arg)
+		{
+			size_t mid = original_array.size() / 2 - 1;
+			size_t i = 0;		// 左半部分索引
+			size_t j = mid + 1; // 右半部分索引
+			size_t k = 0;		// 合併陣列索引
+
+			// 合併兩個已排序的子陣列
+			while (i <= mid && j < original_array.size())
+			{
+				if (original_array[i] <= original_array[j])
+				{
+					sorted_array[k++] = original_array[i++];
+				}
+				else
+				{
+					sorted_array[k++] = original_array[j++];
+				}
+			}
+
+			// 複製剩餘元素
+			while (i <= mid)
+			{
+				sorted_array[k++] = original_array[i++];
+			}
+
+			while (j < original_array.size())
+			{
+				sorted_array[k++] = original_array[j++];
+			}
+
+			return nullptr;
 		}
 		```
 
-2. **父進程邏輯**：
-   - 父進程等待子進程完成後，從共享記憶體讀取結果並輸出。
-   - 最後清理共享記憶體，確保不留垃圾資源。
+2. **主線程邏輯**：
+   - 主線程負責創建線程與等待，印出最初的陣列、部分排序後的陣列、最終完成排序的陣列。  
 		```cpp
-		wait(NULL);
-		printf("Collatz 序列 (起始值 = %d):\n%s\n", start, shm_ptr);
-		if (munmap(shm_ptr, SHM_SIZE) == -1)
-			perror("munmap 失敗");
-		if (shm_unlink(name) == -1)
-			perror("shm_unlink 失敗");
-		```
+		// 計算分割點
+		size_t mid = original_array.size() / 2 - 1; // size_t 是無號整數 用於表示索引
 
-3. **共享記憶體的使用**：
-   - 使用 `shm_open()` 創建或打開共享記憶體，並使用 `mmap()` 將其映射到進程的虛擬記憶體空間。
-   - 使用 `ftruncate()` 設定共享記憶體的大小，確保共享記憶體有足夠的空間存放 Collatz 序列的結果。
-   - 子進程將計算結果寫入共享記憶體，父進程從中讀取結果。
-   - 最後使用 `munmap()` 和 `shm_unlink()` 清理共享記憶體。
-        ```cpp
-        int shm_fd = shm_open(name, O_CREAT | O_RDWR, 0666);
-        if (shm_fd == -1)
-        {
-            perror("shm_open 失敗");
-            return EXIT_FAILURE;
-        }
-        // 設定共享記憶體大小
-        if (ftruncate(shm_fd, SHM_SIZE) == -1)
-        {
-            perror("ftruncate 失敗");
-            return EXIT_FAILURE;
-        }
-        char *shm_ptr = mmap(0, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
-        if (shm_ptr == MAP_FAILED)
-        {
-            perror("mmap 失敗");
-            return EXIT_FAILURE;
-        }
-        ```
+		// 創建排序線程參數
+		SortParams params1 = {0, mid};
+		SortParams params2 = {mid + 1, original_array.size() - 1};
+
+		pthread_t sort_thread1, sort_thread2, merge_thread1;
+
+		// 創建並啟動排序線程
+		pthread_create(&sort_thread1, nullptr, sort_thread, &params1);
+		pthread_create(&sort_thread2, nullptr, sort_thread, &params2);
+
+		// 等待排序線程完成
+		pthread_join(sort_thread1, nullptr);
+		pthread_join(sort_thread2, nullptr);
+
+		// 創建並啟動合併線程
+		pthread_create(&merge_thread1, nullptr, merge_thread, nullptr);
+
+		// 等待合併線程完成
+		pthread_join(merge_thread1, nullptr);
+		```

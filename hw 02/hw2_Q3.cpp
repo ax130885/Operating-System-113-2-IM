@@ -11,7 +11,7 @@
 
 // 題目：輸入一個列表，將列表分為一半，丟到兩個線程中進行排序。
 // 然後再用一個線程，合併兩個已排序的列表。
-// 父進程僅在最後印出結果。
+// 父線程僅在最後印出結果。
 #include <iostream>
 #include <pthread.h>
 #include <vector>
@@ -20,13 +20,12 @@
 // 全局共享資料
 std::vector<int> original_array = {7, 12, 19, 3, 18, 4, 2, 6, 15, 8};
 std::vector<int> sorted_array(original_array.size());
-pthread_mutex_t merge_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-// 線程參數結構體
+// 排序起訖結構體
 struct SortParams
 {
-	int start_index;
-	int end_index;
+	size_t start_index;
+	size_t end_index;
 };
 
 // 排序線程函數
@@ -34,7 +33,7 @@ void *sort_thread(void *arg)
 {
 	SortParams *params = (SortParams *)arg;
 
-	// 對指定範圍的子陣列進行排序
+	// 使用 std::sort (通常是 quick sort) 對指定範圍的子陣列進行排序
 	std::sort(original_array.begin() + params->start_index,
 			  original_array.begin() + params->end_index + 1);
 
@@ -44,10 +43,10 @@ void *sort_thread(void *arg)
 // 合併線程函數
 void *merge_thread(void *arg)
 {
-	int mid = original_array.size() / 2 - 1;
-	int i = 0;		 // 左半部分索引
-	int j = mid + 1; // 右半部分索引
-	int k = 0;		 // 合併陣列索引
+	size_t mid = original_array.size() / 2 - 1;
+	size_t i = 0;		// 左半部分索引
+	size_t j = mid + 1; // 右半部分索引
+	size_t k = 0;		// 合併陣列索引
 
 	// 合併兩個已排序的子陣列
 	while (i <= mid && j < original_array.size())
@@ -87,7 +86,7 @@ int main()
 	std::cout << std::endl;
 
 	// 計算分割點
-	int mid = original_array.size() / 2 - 1;
+	size_t mid = original_array.size() / 2 - 1; // size_t 是無號整數 用於表示索引
 
 	// 創建排序線程參數
 	SortParams params1 = {0, mid};
@@ -124,9 +123,6 @@ int main()
 		std::cout << num << " ";
 	}
 	std::cout << std::endl;
-
-	// 銷毀互斥鎖
-	pthread_mutex_destroy(&merge_mutex);
 
 	return 0;
 }
