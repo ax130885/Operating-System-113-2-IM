@@ -1,17 +1,11 @@
-CC = g++
-CFLAGS = -Wall -g -std=c++11 -pthread
-TARGETS = hw2_Q1 hw2_Q2 hw2_Q3
+CC = gcc
+CFLAGS = -pthread
+TARGETS = hw3
 
 all: $(TARGETS)
 
-hw2_Q1: hw2_Q1.cpp
-	$(CC) $(CFLAGS) hw2_Q1.cpp -o hw2_Q1
-
-hw2_Q2: hw2_Q2.cpp
-	$(CC) $(CFLAGS) hw2_Q2.cpp -o hw2_Q2
-
-hw2_Q3: hw2_Q3.cpp
-	$(CC) $(CFLAGS) hw2_Q3.cpp -o hw2_Q3
+hw3: hw3.c
+	$(CC) $(CFLAGS) hw3.c -o hw3
 
 clean:
 	rm -f $(TARGETS)
